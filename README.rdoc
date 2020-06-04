@@ -1,0 +1,94 @@
+= +jpm+
+
++jpm+ is a password manager using +openssl+ and +signify+ (and optionally
++xclip+).  Technically, it doesn't have anything to do with passwords,
+it just manages encrypted and signed files.
+
+= Requirements
+
++jpm+ expects Ruby 2.6+ to be installed at +/usr/local/bin/ruby+.
+Adjust the shebang if Ruby is installed elsewhere. It does not work
+on Ruby versions before Ruby 2.6.
+
++openssl+ and +signify+ must be in the +PATH+. +xclip+ must be in the
++PATH+ if using the +clip+ command.
+
+= Usage
+
+  # Create ~/.jpm directory structure and openssl and signify keys
+  jpm init
+
+  # Add Foo entry, opening editor, then asking for password to sign
+  jpm add Foo
+
+  # Displays Foo entry, asking for password to decrypt
+  jpm show Foo
+
+  # Lists entries
+  jpm ls
+  # Output:
+  # Foo
+
+  # Search for entry using case insensitive regular expression
+  jpm find f.o
+  # Output:
+  # Foo
+
+  # Verifies all entries have valid signatures
+  jpm verify
+
+  # Rotates secrets, decrypting files with the current secrets,
+  # and encrypting and signing the files with the new secrets.
+  # Asks for the password for current secret (to decrypt) and
+  # password for new secret (to sign).
+  jpm rotate
+
+  # Removes Foo entry
+  jpm rm Foo
+
+  # Add Bar entry, opening editor, then enter incorrect password
+  jpm add Bar 
+
+  # Sign Bar entry (so you don't need to enter plaintext again),
+  # asking for password to sign
+  jpm sign Bar 
+
+  # Copy first line of Bar entry to primary selection,
+  # asking for password to decrypt
+  jpm clip Bar 
+
+= Environment Variables
+
++JPM_DIR+ :: The encrypted storage directory to use (defaults to <tt>~/.jpm</tt>)
++JPM_READ_PASS+ :: Set to +stdin+ to read password from stdin
+
+= History
+
+jpm is based on opm by Robert Nagy: https://github.com/rnagy/opm
+
+jpm follows the same basic approach as opm, using +openssl smime+
+to encrypt and decrypt and +signify+ to sign and verify entries.
+
+Differences between jpm and opm:
+
+* Removed features
+  * No command aliases
+  * No groups
+  * Only options are -d and -h
+  * No man page
+* Added features
+  * +init+ command to initialize secrets/directories
+  * +rotate+ command for secret rotation
+  * +clip+ command to copy first line of file to primary clipboard (using +xclip+)
+  * +sign+ command to sign after +add+ fails due to password issue
+  * This README
+* Changed features
+  * +add+ always uses editor
+* Uses same password for +openssl+ and +signify+
+  * Only enter password once
+* Written in ruby and not sh
+  * Usable as a library
+
+= Author
+
+Jeremy Evans <code@jeremyevans.net>

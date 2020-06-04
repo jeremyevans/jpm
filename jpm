@@ -1,0 +1,285 @@
+#!/usr/local/bin/ruby
+
+class JPM
+  def self.start(argv)
+    File.umask 077
+    require 'optparse'
+
+    jpm = new
+
+    options = OptionParser.new do |opts|
+      opts.banner = "jpm: Password Manager"
+      opts.define_head "Usage: jpm [-dh] command [command_arg]"
+      opts.separator ""
+      opts.separator "Commands:"
+      opts.separator "    init: initialize encrypted storage directory"
+      opts.separator "    ls: list all entries"
+      opts.separator "    verify: verify all entries"
+      opts.separator "    rotate: rotate encryption keys"
+      opts.separator "    add $entry: add an entry"
+      opts.separator "    show $entry: print an entry to stdout"
+      opts.separator "    clip $entry: copy first line of entry to clipboard"
+      opts.separator "    rm $entry: remove an entry"
+      opts.separator "    sign $entry: sign an entry (if add fails due to password)"
+      opts.separator "    find $pattern: search for an entry matching the pattern"
+      opts.separator ""
+      opts.separator "Options:"
+
+      opts.on("-d", "--debug", "Show arguments to system") do
+        jpm.debug_messages = true
+      end 
+
+      opts.on("-h", "-?", "--help", "Show this message") do
+        puts opts
+        exit
+      end 
+    end
+
+    begin
+      argv = options.order(argv)
+    rescue
+      $stderr.puts options
+      exit 1
+    end
+
+    begin
+      command = argv.shift
+
+      case command
+      when "init"
+        jpm.init
+      when "add", "rm", "ls", "show", "verify", "find", "rotate", "sign", "clip"
+        unless jpm.valid_keys?
+          $stderr.puts "Missing openssl or signify secret, run jpm init"
+          exit 1
+        end
+        jpm.send(command, *argv)
+      else
+        $stderr.puts options
+        exit 1
+      end
+    rescue => e
+      $stderr.puts "#{e.class}: #{e.message}"
+      $stderr.puts e.backtrace if jpm.debug_messages
+      exit 1
+    end
+  end
+
+  def initialize(jpm_dir: ENV['JPM_DIR'], stdin_pass: ENV["JPM_READ_PASS"] == "stdin")
+    @dir = jpm_dir || "#{ENV['HOME']}/.jpm"
+    @store = "#{@dir}/store"
+    @keystore = "#{@dir}/private"
+    @tmpstore = "#{@dir}/tmpstore"
+    @encrypt_private_key = "#{@keystore}/encrypt.key"
+    @encrypt_public_key = "#{@keystore}/encrypt.pub"
+    @sign_private_key = "#{@keystore}/signify.sec"
+    @sign_public_key = "#{@keystore}/signify.pub"
+    @stdin_pass = stdin_pass
+  end
+
+  attr_accessor :debug_messages
+
+  def system(*args, **kw)
+    p [:system, *args, kw] if debug_messages
+    super
+  end
+
+  def valid_keys?
+    [@encrypt_public_key, @encrypt_private_key, @sign_public_key, @sign_private_key].each do |f|
+      unless File.file?(f)
+        return false
+      end
+    end
+    return true
+  end
+
+  def pkcs_path(entry)
+    raise "invalid entry name" if entry =~ /\/|\0/
+    "#{@store}/#{entry}"
+  end
+  
+  def sign_path(path, key, **kw)
+    system("signify", "-S", "-s", key, "-m", path, **kw)
+  end
+
+  def encrypt(enc_path, tmp_path, pubkey: @encrypt_public_key, key: @sign_private_key, sign_opts: {})
+    system("openssl", "smime", "-encrypt", "-aes256", "-in", tmp_path, "-out",
+      enc_path, "-outform", "PEM", pubkey, exception: true)
+    puts "Signing #{enc_path} with #{key}"
+    sign_path(enc_path, key, exception: true, **sign_opts)
+  end
+
+  def decrypt(enc_path, *args, **kw)
+    pass_args = @stdin_pass ? ['-passin', 'file:/dev/stdin'] : []
+    system("openssl", "smime", "-decrypt", "-in", enc_path, "-inform", "PEM", "-inkey", @encrypt_private_key, *pass_args, *args, **kw)
+  end
+
+  def decrypt_entry(entry, **kw)
+    enc_path = pkcs_path(entry)
+    if system("signify", "-Vq", "-p", @sign_public_key, "-m", enc_path)
+      decrypt(enc_path, **kw)
+    end
+  end
+
+  def entries
+    Dir[@store+'/*.sig'].sort.map{|f| File.basename(f).delete_suffix('.sig')}
+  end
+
+  def tmp_path(path)
+    File.join(File.dirname(path), "tmp."+File.basename(path))
+  end
+
+  def init_openssl(key, pubkey, *args)
+    system("openssl", "req", "-x509", "-newkey", "rsa:4096", "-days", "10000",
+           "-subj", "/C=US/ST=*/L=*/O=*/OU=*/CN=JPM/", *args, "-keyout", key, 
+           "-out", pubkey, exception: true)
+  end
+
+  def init_signify(key, pubkey, **kw)
+    system("signify", "-G", "-p", pubkey, "-s", key, exception: true, **kw)
+  end
+
+  def get_password(prompt)
+    if @stdin_pass
+      $stdin.readline
+    else
+      require 'io/console'
+      IO::console.getpass prompt
+    end
+  end
+
+  def get_password_file(prompt: "Enter Password: ",  password_file: "#{@keystore}/pass")
+    password = get_password prompt
+    raise "password too short (minimum 4 characters)" unless password.length >= 4
+    File.open(password_file, 'w'){|f| f.write password}
+    yield password_file
+  ensure
+    system("rm", "-P", password_file) if File.file?(password_file)
+  end
+
+  # Command Handling
+
+  def init
+    Dir.mkdir(@dir) unless File.directory?(@dir)
+    Dir.mkdir(@store) unless File.directory?(@store)
+    Dir.mkdir(@keystore) unless File.directory?(@keystore)
+    Dir.mkdir(@tmpstore) unless File.directory?(@tmpstore)
+
+    if (!File.file?(@encrypt_private_key) && !File.file?(@encrypt_public_key)) ||
+       (!File.file?(@sign_private_key) && !File.file?(@sign_public_key))
+
+      get_password_file do |password_file|
+        if !File.file?(@encrypt_private_key) && !File.file?(@encrypt_public_key)
+          init_openssl(@encrypt_private_key, @encrypt_public_key, '-passout', "file:#{password_file}")
+        end
+        if !File.file?(@sign_private_key) && !File.file?(@sign_public_key)
+          init_signify(@sign_private_key, @sign_public_key, in: password_file)
+        end
+      end
+    end
+    nil
+  end
+
+  def add(entry)
+    enc_path = pkcs_path(entry)
+    path = "#{@tmpstore}/#{entry}"
+    File.write(path, '') unless File.file?(path)
+    system(ENV['EDITOR'] || 'vi', path, exception: true)
+    encrypt(pkcs_path(entry), path)
+    nil
+  ensure
+    system("rm", "-P", path) if path
+  end
+
+  def clip(entry)
+    read, write = IO.pipe
+    decrypt_entry(entry, exception: true, out: write)
+    write.close
+    content = read.readline.chomp
+    read.close
+
+    read, write = IO.pipe
+    write.write(content)
+    write.close
+    system('xclip', "-l", '1', in: read)
+    read.close
+    nil
+  end
+
+  def find(pattern)
+    puts entries.grep(/#{pattern}/i)
+    nil
+  end
+
+  def ls
+    puts entries
+    nil
+  end
+
+  def rotate
+    get_password_file(prompt: "Enter Old Password: ",  password_file: "#{@keystore}/pass.old") do |old_password_file|
+      get_password_file(prompt: "Enter New Password: ") do |password_file|
+        [tmp_path(@encrypt_private_key), tmp_path(@encrypt_public_key), tmp_path(@sign_private_key), tmp_path(@sign_public_key)].each do |path|
+          File.delete(path) if File.file?(path)
+        end
+
+        init_openssl(tmp_path(@encrypt_private_key), tmp_path(@encrypt_public_key), '-passout', "file:#{password_file}")
+        init_signify(tmp_path(@sign_private_key), tmp_path(@sign_public_key), in: password_file)
+
+        entries.each do |entry|
+          tmp_entry = "#{@tmpstore}/#{entry}"
+          tmp_entry_dec = tmp_entry+".tmp"
+          decrypt(pkcs_path(entry), '-passin', "file:#{old_password_file}", out: tmp_entry_dec)
+          encrypt(tmp_entry, tmp_entry_dec, pubkey: tmp_path(@encrypt_public_key), key: tmp_path(@sign_private_key), sign_opts: {in: password_file})
+        ensure
+          system("rm", "-P", tmp_entry_dec) if tmp_entry_dec
+        end
+
+        File.rename(@store, @store+".old")
+        File.rename(@encrypt_private_key, @encrypt_private_key+".old")
+        File.rename(@sign_private_key, @sign_private_key+".old")
+        File.rename(@encrypt_public_key, @encrypt_public_key+".old")
+        File.rename(@sign_public_key, @sign_public_key+".old")
+
+        File.rename(@tmpstore, @store)
+        Dir.mkdir(@tmpstore)
+        File.rename(tmp_path(@encrypt_private_key), @encrypt_private_key)
+        File.rename(tmp_path(@sign_private_key), @sign_private_key)
+        File.rename(tmp_path(@encrypt_public_key), @encrypt_public_key)
+        File.rename(tmp_path(@sign_public_key), @sign_public_key)
+
+        system("rm", "-P", @encrypt_private_key+".old", @sign_private_key+".old", @encrypt_public_key+".old", @sign_public_key+".old", *Dir[@store+".old/*"])
+        Dir.rmdir(@store+".old") if File.directory?(@store+".old")
+      end
+    end
+    nil
+  end
+
+  def rm(entry)
+    enc_path = pkcs_path(entry)
+    system("rm", "-P", enc_path, enc_path+'.sig')
+    nil
+  end
+
+  def show(entry)
+    decrypt_entry(entry, exception: true)
+    nil
+  end
+
+  def sign(entry)
+    sign_path(pkcs_path(entry), @sign_private_key, exception: true)
+    nil
+  end
+
+  def verify
+    entries.each do |entry|
+      enc_path = pkcs_path(entry)
+      system("signify", "-Vq", "-p", @sign_public_key, "-m", enc_path) || $stderr.puts("Unable to verify: #{entry}")
+    end
+    nil
+  end
+end
+
+if __FILE__ == $0
+  JPM.start(ARGV)
+end
