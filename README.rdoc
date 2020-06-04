@@ -69,7 +69,7 @@ on Ruby versions before Ruby 2.6.
 
 jpm is based on opm by Robert Nagy: https://github.com/rnagy/opm
 
-jpm follows the same basic approach as opm, using +openssl smime+
+jpm follows the same basic approach as opm, using <tt>openssl smime</tt>
 to encrypt and decrypt and +signify+ to sign and verify entries.
 
 Differences between jpm and opm:
