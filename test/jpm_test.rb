@@ -144,7 +144,14 @@ describe "jpm" do
     files("store").must_equal %w"Foo Foo.sig"
     files("tmpstore").must_be_empty
 
-    jpm('show', 'Foo') do |i,o,e,t|
+    jpm('mv', 'Foo', 'Baz') do |_,o,e,t|
+      o.read.must_be_empty
+      e.read.must_be_empty
+      t.value.exitstatus.must_equal 0
+    end
+    files("store").must_equal %w"Baz Baz.sig"
+
+    jpm('show', 'Baz') do |i,o,e,t|
       i.puts new_pass
       i.close
       o.read.sub("\r\n", "\n").must_equal "bar\nbaz"
@@ -153,7 +160,7 @@ describe "jpm" do
     end
 
     if ENV['DISPLAY']
-      jpm('clip', 'Foo') do |i,o,e,t|
+      jpm('clip', 'Baz') do |i,o,e,t|
         i.puts new_pass
         i.close
         t.value.exitstatus.must_equal 0
@@ -168,7 +175,7 @@ describe "jpm" do
       e.read.must_include("invalid entry name")
       t.value.exitstatus.must_equal 1
     end
-    files("store").must_equal %w"Foo Foo.sig"
+    files("store").must_equal %w"Baz Baz.sig"
     files("tmpstore").must_be_empty
   end
 end

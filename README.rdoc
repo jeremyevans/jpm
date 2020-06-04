@@ -53,9 +53,12 @@ on Ruby versions before Ruby 2.6.
   # asking for password to sign
   jpm sign Bar 
 
-  # Copy first line of Bar entry to primary selection,
+  # Rename Bar entry to Baz
+  jpm mv Bar Baz
+
+  # Copy first line of Baz entry to primary selection,
   # asking for password to decrypt
-  jpm clip Bar 
+  jpm clip Baz
 
 = Environment Variables
 
@@ -81,6 +84,7 @@ Differences between jpm and opm:
   * +rotate+ command for secret rotation
   * +clip+ command to copy first line of file to primary clipboard (using +xclip+)
   * +sign+ command to sign after +add+ fails due to password issue
+  * +mv+ command to rename entries
   * This README
 * Changed features
   * +add+ always uses editor

@@ -20,6 +20,7 @@ class JPM
       opts.separator "    show $entry: print an entry to stdout"
       opts.separator "    clip $entry: copy first line of entry to clipboard"
       opts.separator "    rm $entry: remove an entry"
+      opts.separator "    mv $entry $new_entry: rename an entry"
       opts.separator "    sign $entry: sign an entry (if add fails due to password)"
       opts.separator "    find $pattern: search for an entry matching the pattern"
       opts.separator ""
@@ -48,7 +49,7 @@ class JPM
       case command
       when "init"
         jpm.init
-      when "add", "rm", "ls", "show", "verify", "find", "rotate", "sign", "clip"
+      when "add", "rm", "mv", "ls", "show", "verify", "find", "rotate", "sign", "clip"
         unless jpm.valid_keys?
           $stderr.puts "Missing openssl or signify secret, run jpm init"
           exit 1
@@ -213,6 +214,14 @@ class JPM
 
   def ls
     puts entries
+    nil
+  end
+
+  def mv(entry, new_entry)
+    enc_path = pkcs_path(entry)
+    new_enc_path = pkcs_path(new_entry)
+    File.rename(enc_path, new_enc_path)
+    File.rename(enc_path+'.sig', new_enc_path+'.sig')
     nil
   end
 
