@@ -281,10 +281,21 @@ class JPM
   end
 
   def verify
+    all_good = true
     entries.each do |entry|
       enc_path = pkcs_path(entry)
-      system("signify", "-Vq", "-p", @sign_public_key, "-m", enc_path) || $stderr.puts("Unable to verify: #{entry}")
+      unless system("signify", "-Vq", "-p", @sign_public_key, "-m", enc_path)
+        $stderr.puts("Unable to verify: #{entry}")
+        all_good = false
+      end
     end
+    Dir[@store+'/*'].sort.each do |f|
+      unless f.end_with?('.sig') || File.file?(f+'.sig')
+        $stderr.puts "Entry missing signature: #{File.basename(f)}"
+        all_good = false
+      end
+    end
+    raise "unable to verify" unless all_good
     nil
   end
 end

@@ -88,6 +88,7 @@ Differences between jpm and opm:
   * This README
 * Changed features
   * +add+ always uses editor
+  * +verify+ reports entries without signatures
 * Uses same password for +openssl+ and +signify+
   * Only enter password once
 * Written in ruby and not sh

@@ -70,6 +70,12 @@ describe "jpm" do
     files("store").must_equal %w"Foo"
     files("tmpstore").must_be_empty
 
+    jpm('verify') do |_,o,e,t|
+      o.read.must_be_empty
+      e.read.must_include "Entry missing signature: Foo"
+      t.value.exitstatus.must_equal 1
+    end
+
     jpm('sign', 'Foo') do |i,o,e,t|
       i.puts pass
       i.close
