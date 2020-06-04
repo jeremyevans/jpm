@@ -183,5 +183,15 @@ describe "jpm" do
     end
     files("store").must_equal %w"Baz Baz.sig"
     files("tmpstore").must_be_empty
+
+    jpm('add', 'Bar.sig') do |i,o,e,t|
+      i.puts new_pass
+      i.close
+      o.read.must_be_empty
+      e.read.must_include("invalid entry name")
+      t.value.exitstatus.must_equal 1
+    end
+    files("store").must_equal %w"Baz Baz.sig"
+    files("tmpstore").must_be_empty
   end
 end

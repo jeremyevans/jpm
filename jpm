@@ -95,7 +95,7 @@ class JPM
   end
 
   def pkcs_path(entry)
-    raise "invalid entry name" if entry =~ /\/|\0/
+    raise "invalid entry name" if entry =~ /\/|\0/ || entry.end_with?('.sig')
     "#{@store}/#{entry}"
   end
   
