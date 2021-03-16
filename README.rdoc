@@ -30,9 +30,14 @@ on Ruby versions before Ruby 2.6.
   # Foo
 
   # Search for entry using case insensitive regular expression
+  # and display matching entry names
   jpm find f.o
   # Output:
   # Foo
+
+  # Same as find, but if there is a single result, displays
+  # entry, asking for password to decrypt
+  jpm s f.o
 
   # Verifies all entries have valid signatures
   jpm verify
@@ -85,6 +90,7 @@ Differences between jpm and opm:
   * +clip+ command to copy first line of file to primary clipboard (using +xclip+)
   * +sign+ command to sign after +add+ fails due to password issue
   * +mv+ command to rename entries
+  * +s+ command to find entries and also show entry if there is a single result
   * This README
 * Changed features
   * +add+ always uses editor

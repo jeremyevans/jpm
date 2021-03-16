@@ -23,6 +23,8 @@ class JPM
       opts.separator "    mv $entry $new_entry: rename an entry"
       opts.separator "    sign $entry: sign an entry (if add fails due to password)"
       opts.separator "    find $pattern: search for an entry matching the pattern"
+      opts.separator "    s $pattern: same as find, but also show if a single"
+      opts.separator "                entry matches the pattern"
       opts.separator ""
       opts.separator "Options:"
 
@@ -49,7 +51,7 @@ class JPM
       case command
       when "init"
         jpm.init
-      when "add", "rm", "mv", "ls", "show", "verify", "find", "rotate", "sign", "clip"
+      when "add", "rm", "mv", "ls", "show", "verify", "find", "rotate", "sign", "clip", "s"
         unless jpm.valid_keys?
           $stderr.puts "Missing openssl or signify secret, run jpm init"
           exit 1
@@ -209,6 +211,15 @@ class JPM
 
   def find(pattern)
     puts entries.grep(/#{pattern}/i)
+    nil
+  end
+
+  def s(pattern)
+    matching_entries = entries.grep(/#{pattern}/i)
+    puts matching_entries
+    if matching_entries.length == 1
+      decrypt_entry(matching_entries[0], exception: true)
+    end
     nil
   end
 
