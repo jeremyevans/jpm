@@ -23,8 +23,7 @@ class JPM
       opts.separator "    mv $entry $new_entry: rename an entry"
       opts.separator "    sign $entry: sign an entry (if add fails due to password)"
       opts.separator "    find $pattern: search for an entry matching the pattern"
-      opts.separator "    s $pattern: same as find, but also show if a single"
-      opts.separator "                entry matches the pattern"
+      opts.separator "    s $pattern: shows single entry or a menu to choose an entry"
       opts.separator ""
       opts.separator "Options:"
 
@@ -216,10 +215,19 @@ class JPM
 
   def s(pattern)
     matching_entries = entries.grep(/#{pattern}/i)
-    puts matching_entries
     if matching_entries.length == 1
-      decrypt_entry(matching_entries[0], exception: true)
+      entry = matching_entries.first
+    else
+      puts matching_entries.map.with_index{|entry, i| "#{i+1}) #{entry}"}
+      $stdout.print "Choice: "
+      $stdout.flush
+      index = Integer($stdin.gets.chomp) - 1
+      unless index > 0 && (entry = matching_entries[index])
+        raise "Invalid option"
+      end
     end
+    puts entry
+    show(entry)
     nil
   end
 

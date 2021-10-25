@@ -211,5 +211,28 @@ describe "jpm" do
     end
     files("store").must_equal %w"Bar Bar.sig Baz Baz.sig"
     files("tmpstore").must_be_empty
+
+    jpm('s', 'ba') do |i,o,e,t|
+      o.readline.chomp.must_equal '1) Bar'
+      o.readline.chomp.must_equal '2) Baz'
+      o.read("Choice: ".size).must_equal "Choice: "
+      i.puts "0"
+      i.close
+      e.read.must_equal "RuntimeError: Invalid option\n"
+      t.value.exitstatus.must_equal 1
+    end
+
+    jpm('s', 'Ba') do |i,o,e,t|
+      o.readline.chomp.must_equal '1) Bar'
+      o.readline.chomp.must_equal '2) Baz'
+      o.read("Choice: ".size).must_equal "Choice: "
+      i.puts "2"
+      o.readline.chomp.must_equal 'Baz'
+      i.puts new_pass
+      i.close
+      o.read.sub("\r\n", "\n").must_equal "bar\nbaz"
+      e.read.must_be_empty
+      t.value.exitstatus.must_equal 0
+    end
   end
 end
