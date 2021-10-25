@@ -165,6 +165,14 @@ describe "jpm" do
       t.value.exitstatus.must_equal 0
     end
 
+    jpm('s', 'Baz') do |i,o,e,t|
+      i.puts new_pass
+      i.close
+      o.read.sub("\r\n", "\n").must_equal "Baz\nbar\nbaz"
+      e.read.must_be_empty
+      t.value.exitstatus.must_equal 0
+    end
+
     if ENV['DISPLAY']
       jpm('clip', 'Baz') do |i,o,e,t|
         i.puts new_pass
@@ -192,6 +200,16 @@ describe "jpm" do
       t.value.exitstatus.must_equal 1
     end
     files("store").must_equal %w"Baz Baz.sig"
+    files("tmpstore").must_be_empty
+
+    jpm('add', 'Bar') do |i,o,e,t|
+      i.puts new_pass
+      i.close
+      o.read.must_match(/\ASigning .*\/Bar with .*\/signify\.sec/)
+      e.read.must_be_empty
+      t.value.exitstatus.must_equal 0
+    end
+    files("store").must_equal %w"Bar Bar.sig Baz Baz.sig"
     files("tmpstore").must_be_empty
   end
 end
