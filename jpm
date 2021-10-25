@@ -215,17 +215,28 @@ class JPM
 
   def s(pattern)
     matching_entries = entries.grep(/#{pattern}/i)
-    if matching_entries.length == 1
+    case matching_entries.length
+    when 0
+      return
+    when 1
       entry = matching_entries.first
     else
       puts matching_entries.map.with_index{|entry, i| "#{i+1}) #{entry}"}
       $stdout.print "Choice: "
       $stdout.flush
-      index = Integer($stdin.gets.chomp) - 1
-      unless index > 0 && (entry = matching_entries[index])
+      index = $stdin.gets.chomp
+
+      return if index.empty?
+
+      if (index = Integer(index) - 1) > 0
+        entry = matching_entries[index]
+      end
+
+      unless entry
         raise "Invalid option"
       end
     end
+
     puts entry
     show(entry)
     nil

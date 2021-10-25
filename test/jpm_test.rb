@@ -212,6 +212,12 @@ describe "jpm" do
     files("store").must_equal %w"Bar Bar.sig Baz Baz.sig"
     files("tmpstore").must_be_empty
 
+    jpm('s', 'bah') do |_,o,e,t|
+      o.read.must_be_empty
+      e.read.must_be_empty
+      t.value.exitstatus.must_equal 0
+    end
+
     jpm('s', 'ba') do |i,o,e,t|
       o.readline.chomp.must_equal '1) Bar'
       o.readline.chomp.must_equal '2) Baz'
@@ -231,6 +237,17 @@ describe "jpm" do
       i.puts new_pass
       i.close
       o.read.sub("\r\n", "\n").must_equal "bar\nbaz"
+      e.read.must_be_empty
+      t.value.exitstatus.must_equal 0
+    end
+
+    jpm('s', 'Ba') do |i,o,e,t|
+      o.readline.chomp.must_equal '1) Bar'
+      o.readline.chomp.must_equal '2) Baz'
+      o.read("Choice: ".size).must_equal "Choice: "
+      i.puts ""
+      i.close
+      o.read.must_be_empty
       e.read.must_be_empty
       t.value.exitstatus.must_equal 0
     end
