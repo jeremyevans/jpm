@@ -228,7 +228,7 @@ class JPM
 
       return if index.empty?
 
-      if (index = Integer(index) - 1) > 0
+      if (index = Integer(index) - 1) >= 0
         entry = matching_entries[index]
       end
 
