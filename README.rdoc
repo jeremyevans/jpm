@@ -70,6 +70,17 @@ on Ruby versions before Ruby 2.6.
 +JPM_DIR+ :: The encrypted storage directory to use (defaults to <tt>~/.jpm</tt>)
 +JPM_READ_PASS+ :: Set to +stdin+ to read password from stdin
 
+= Windows Support
+
+It is possible to use jpm on Windows.  You need to have a Windows version
+of signify and openssl.  One option for signify is
+https://github.com/badboy/signify-rs.  One option for openssl is
+https://curl.se/windows/dl-7.83.1/ (or other newer version).
+
+As signify-rs does not yet support reading passwords from stdin, when using
+<tt>jpm init</tt>, you'll have to input the signify password separately,
+twice.  Additionally, <tt>jpm rotate</tt> will not work.
+
 = History
 
 jpm is based on opm by Robert Nagy: https://github.com/rnagy/opm

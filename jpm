@@ -1,6 +1,11 @@
 #!/usr/local/bin/ruby --disable-gems
 
 class JPM
+  WIN = RUBY_PLATFORM =~ /ming|win/
+  EDITOR = ENV['EDITOR'] || (WIN ? 'notepad' : 'vi')
+  CLIP_ARGS = WIN ? ['clip'] : ['xclip', "-l", '1']
+  SIGNIFY_QUIET = WIN ? '' : 'q'
+
   def self.start(argv)
     File.umask 077
     require 'optparse'
@@ -68,14 +73,14 @@ class JPM
   end
 
   def initialize(jpm_dir: ENV['JPM_DIR'], stdin_pass: ENV["JPM_READ_PASS"] == "stdin")
-    @dir = jpm_dir || "#{ENV['HOME']}/.jpm"
-    @store = "#{@dir}/store"
-    @keystore = "#{@dir}/private"
-    @tmpstore = "#{@dir}/tmpstore"
-    @encrypt_private_key = "#{@keystore}/encrypt.key"
-    @encrypt_public_key = "#{@keystore}/encrypt.pub"
-    @sign_private_key = "#{@keystore}/signify.sec"
-    @sign_public_key = "#{@keystore}/signify.pub"
+    @dir = jpm_dir || File.join(ENV['HOME'], ".jpm")
+    @store = File.join(@dir, "store")
+    @keystore = File.join(@dir, "private")
+    @tmpstore = File.join(@dir, "tmpstore")
+    @encrypt_private_key = File.join(@keystore, "encrypt.key")
+    @encrypt_public_key = File.join(@keystore, "encrypt.pub")
+    @sign_private_key = File.join(@keystore, "signify.sec")
+    @sign_public_key = File.join(@keystore, "signify.pub")
     @stdin_pass = stdin_pass
   end
 
@@ -97,7 +102,7 @@ class JPM
 
   def pkcs_path(entry)
     raise "invalid entry name" if entry =~ /\/|\0/ || entry.end_with?('.sig')
-    "#{@store}/#{entry}"
+    File.join(@store, entry)
   end
   
   def sign_path(path, key, **kw)
@@ -118,13 +123,13 @@ class JPM
 
   def decrypt_entry(entry, **kw)
     enc_path = pkcs_path(entry)
-    if system("signify", "-Vq", "-p", @sign_public_key, "-m", enc_path)
+    if system("signify", "-V#{SIGNIFY_QUIET}", "-p", @sign_public_key, "-m", enc_path)
       decrypt(enc_path, **kw)
     end
   end
 
   def entries
-    Dir[@store+'/*.sig'].sort.map{|f| File.basename(f).delete_suffix('.sig')}
+    Dir[File.join(@store, '*.sig')].sort.map{|f| File.basename(f).delete_suffix('.sig')}
   end
 
   def tmp_path(path)
@@ -138,6 +143,7 @@ class JPM
   end
 
   def init_signify(key, pubkey, **kw)
+    kw = {} if WIN
     system("signify", "-G", "-p", pubkey, "-s", key, exception: true, **kw)
   end
 
@@ -150,13 +156,29 @@ class JPM
     end
   end
 
-  def get_password_file(prompt: "Enter Password: ",  password_file: "#{@keystore}/pass")
+  def get_password_file(prompt: "Enter Password: ",  password_file: File.join(@keystore, "pass"))
     password = get_password prompt
     raise "password too short (minimum 4 characters)" unless password.length >= 4
     File.open(password_file, 'w'){|f| f.write password}
     yield password_file
   ensure
-    system("rm", "-P", password_file) if File.file?(password_file)
+    remove_file(password_file)
+  end
+
+  def remove_files(*files)
+    files.each do |file|
+      remove_file(file)
+    end
+  end
+
+  if WIN
+    def remove_file(file)
+      File.delete(file) if file && File.file?(file)
+    end
+  else
+    def remove_file(file)
+      system("rm", "-P", file) if file && File.file?(file)
+    end
   end
 
   # Command Handling
@@ -184,13 +206,13 @@ class JPM
 
   def add(entry)
     enc_path = pkcs_path(entry)
-    path = "#{@tmpstore}/#{entry}"
+    path = File.join(@tmpstore, entry)
     File.write(path, '') unless File.file?(path)
-    system(ENV['EDITOR'] || 'vi', path, exception: true)
+    system(EDITOR, path, exception: true)
     encrypt(pkcs_path(entry), path)
     nil
   ensure
-    system("rm", "-P", path) if path
+    remove_file(path)
   end
 
   def clip(entry)
@@ -203,7 +225,7 @@ class JPM
     read, write = IO.pipe
     write.write(content)
     write.close
-    system('xclip', "-l", '1', in: read)
+    system(*CLIP_ARGS, in: read, exception: true)
     read.close
     nil
   end
@@ -256,7 +278,7 @@ class JPM
   end
 
   def rotate
-    get_password_file(prompt: "Enter Old Password: ",  password_file: "#{@keystore}/pass.old") do |old_password_file|
+    get_password_file(prompt: "Enter Old Password: ",  password_file: File.join(@keystore, "pass.old")) do |old_password_file|
       get_password_file(prompt: "Enter New Password: ") do |password_file|
         [tmp_path(@encrypt_private_key), tmp_path(@encrypt_public_key), tmp_path(@sign_private_key), tmp_path(@sign_public_key)].each do |path|
           File.delete(path) if File.file?(path)
@@ -266,12 +288,12 @@ class JPM
         init_signify(tmp_path(@sign_private_key), tmp_path(@sign_public_key), in: password_file)
 
         entries.each do |entry|
-          tmp_entry = "#{@tmpstore}/#{entry}"
+          tmp_entry = File.join(@tmpstore, entry)
           tmp_entry_dec = tmp_entry+".tmp"
           decrypt(pkcs_path(entry), '-passin', "file:#{old_password_file}", out: tmp_entry_dec)
           encrypt(tmp_entry, tmp_entry_dec, pubkey: tmp_path(@encrypt_public_key), key: tmp_path(@sign_private_key), sign_opts: {in: password_file})
         ensure
-          system("rm", "-P", tmp_entry_dec) if tmp_entry_dec
+          remove_file(tmp_entry_dec)
         end
 
         File.rename(@store, @store+".old")
@@ -287,7 +309,7 @@ class JPM
         File.rename(tmp_path(@encrypt_public_key), @encrypt_public_key)
         File.rename(tmp_path(@sign_public_key), @sign_public_key)
 
-        system("rm", "-P", @encrypt_private_key+".old", @sign_private_key+".old", @encrypt_public_key+".old", @sign_public_key+".old", *Dir[@store+".old/*"])
+        remove_files(@encrypt_private_key+".old", @sign_private_key+".old", @encrypt_public_key+".old", @sign_public_key+".old", *Dir[File.join(@store+".old", "*")])
         Dir.rmdir(@store+".old") if File.directory?(@store+".old")
       end
     end
@@ -296,7 +318,7 @@ class JPM
 
   def rm(entry)
     enc_path = pkcs_path(entry)
-    system("rm", "-P", enc_path, enc_path+'.sig')
+    remove_files(enc_path, enc_path+'.sig')
     nil
   end
 
@@ -314,12 +336,12 @@ class JPM
     all_good = true
     entries.each do |entry|
       enc_path = pkcs_path(entry)
-      unless system("signify", "-Vq", "-p", @sign_public_key, "-m", enc_path)
+      unless system("signify", "-V#{SIGNIFY_QUIET}", "-p", @sign_public_key, "-m", enc_path)
         $stderr.puts("Unable to verify: #{entry}")
         all_good = false
       end
     end
-    Dir[@store+'/*'].sort.each do |f|
+    Dir[File.join(@store, '*')].sort.each do |f|
       unless f.end_with?('.sig') || File.file?(f+'.sig')
         $stderr.puts "Entry missing signature: #{File.basename(f)}"
         all_good = false
