@@ -48,6 +48,10 @@ on Ruby versions before Ruby 2.6.
   # password for new secret (to sign).
   jpm rotate
 
+  # Decrypts all files and writes plain text versions to files
+  # in the given export directory (asks for password to decrypt)
+  jpm export export-directory
+
   # Removes Foo entry
   jpm rm Foo
 
@@ -102,6 +106,7 @@ Differences between jpm and opm:
   * +sign+ command to sign after +add+ fails due to password issue
   * +mv+ command to rename entries
   * +s+ command to show entry by regular expression, or menu to select entries
+  * +export+ command to export decrypted files
   * This README
 * Changed features
   * +add+ always uses editor

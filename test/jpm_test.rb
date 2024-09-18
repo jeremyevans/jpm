@@ -7,6 +7,7 @@ require 'minitest/global_expectations/autorun'
 require 'fileutils'
 require 'open3'
 JPM_DIR = "test/.jpm"
+JPM_EXPORT_DIR = "test/.jpm-export"
 
 describe "jpm" do
   def jpm(*args, &block)
@@ -20,6 +21,7 @@ describe "jpm" do
 
   after do
     FileUtils.rm_r(JPM_DIR) if File.directory?(JPM_DIR)
+    FileUtils.rm_r(JPM_EXPORT_DIR) if File.directory?(JPM_EXPORT_DIR)
   end
 
   it 'should display the usage on command or argument error' do
@@ -135,6 +137,16 @@ describe "jpm" do
       e.read.must_be_empty
       t.value.exitstatus.must_equal 0
     end
+
+    jpm('export', JPM_EXPORT_DIR) do |i,o,e,t|
+      i.puts pass
+      sleep 0.1
+      o.read.must_be_empty
+      e.read.must_be_empty
+      t.value.exitstatus.must_equal 0
+    end
+    Dir["#{JPM_EXPORT_DIR}/*"].sort.map{|f| File.basename(f)}.must_equal ['Foo']
+    File.binread(File.join(JPM_EXPORT_DIR, 'Foo')).sub("\r\n", "\n").must_equal "bar\nbaz"
 
     new_pass = 'fiii'
     jpm('rotate') do |i,o,e,t|
