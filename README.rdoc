@@ -24,6 +24,10 @@ on Ruby versions before Ruby 2.6.
   # Displays Foo entry, asking for password to decrypt
   jpm show Foo
 
+  # Decrypts Foo entry and opens in editor, encrypts and signs
+  # after editor exits (asks for password once)
+  jpm show Foo
+
   # Lists entries
   jpm ls
   # Output:
@@ -83,7 +87,7 @@ https://curl.se/windows/dl-7.83.1/ (or other newer version).
 
 As signify-rs does not yet support reading passwords from stdin, when using
 <tt>jpm init</tt>, you'll have to input the signify password separately,
-twice.  Additionally, <tt>jpm rotate</tt> will not work.
+twice.  Additionally, <tt>jpm rotate</tt> and <tt>jpm edit</tt> will not work.
 
 = History
 
@@ -107,6 +111,7 @@ Differences between jpm and opm:
   * +mv+ command to rename entries
   * +s+ command to show entry by regular expression, or menu to select entries
   * +export+ command to export decrypted files
+  * +edit+ command to edit existing entries
   * This README
 * Changed features
   * +add+ always uses editor

@@ -114,6 +114,24 @@ describe "jpm" do
       t.value.exitstatus.must_equal 0
     end
 
+    jpm('edit', 'Foo') do |i,o,e,t|
+      i.puts pass
+      i.close
+      o.read.must_match(/\ASigning .*\/Foo with .*\/signify\.sec/)
+      e.read.must_be_empty
+      t.value.exitstatus.must_equal 0
+    end
+    files("store").must_equal %w"Foo Foo.sig"
+    files("tmpstore").must_be_empty
+
+    jpm('show', 'Foo') do |i,o,e,t|
+      i.puts pass
+      i.close
+      o.read.sub("\r\n", "\n").must_equal "bar\nbaz"
+      e.read.must_be_empty
+      t.value.exitstatus.must_equal 0
+    end
+
     jpm('ls') do |_,o,e,t|
       o.read.must_equal "Foo\n"
       e.read.must_be_empty

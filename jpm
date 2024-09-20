@@ -23,6 +23,7 @@ class JPM
       opts.separator "    rotate: rotate encryption keys"
       opts.separator "    add $entry: add an entry"
       opts.separator "    show $entry: print an entry to stdout"
+      opts.separator "    edit $entry: edit existing entry"
       opts.separator "    clip $entry: copy first line of entry to clipboard"
       opts.separator "    rm $entry: remove an entry"
       opts.separator "    mv $entry $new_entry: rename an entry"
@@ -56,7 +57,7 @@ class JPM
       case command
       when "init"
         jpm.init
-      when "add", "rm", "mv", "ls", "show", "verify", "find", "rotate", "sign", "clip", "s", "export"
+      when "add", "rm", "mv", "ls", "show", "edit", "verify", "find", "rotate", "sign", "clip", "s", "export"
         unless jpm.valid_keys?
           $stderr.puts "Missing openssl or signify secret, run jpm init"
           exit 1
@@ -122,10 +123,10 @@ class JPM
     system("openssl", "smime", "-decrypt", "-in", enc_path, "-inform", "PEM", "-inkey", @encrypt_private_key, *pass_args, *args, **kw)
   end
 
-  def decrypt_entry(entry, **kw)
+  def decrypt_entry(entry, *args, **kw)
     enc_path = pkcs_path(entry)
     if system("signify", "-V#{SIGNIFY_QUIET}", "-p", @sign_public_key, "-m", enc_path)
-      decrypt(enc_path, **kw)
+      decrypt(enc_path, *args, **kw)
     end
   end
 
@@ -214,6 +215,20 @@ class JPM
     nil
   ensure
     remove_file(path)
+  end
+
+  def edit(entry)
+    path = File.join(@tmpstore, entry)
+    get_password_file do |password_file|
+      File.open(path, 'wb') do |f|
+        decrypt_entry(entry, '-passin', "file:#{password_file}", exception: true, out: f)
+      end
+      system(EDITOR, path, exception: true)
+      encrypt(pkcs_path(entry), path, sign_opts: {in: password_file})
+    ensure
+      remove_file(path)
+    end
+    nil
   end
 
   def clip(entry)
